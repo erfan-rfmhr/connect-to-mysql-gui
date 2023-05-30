@@ -58,16 +58,3 @@ class Database:
         print(f'{query=}', values)
         self.connection.commit()
 
-
-# tests
-if __name__ == "__main__":
-    my_cursor = connect(
-        host='localhost',
-        user='erfan',
-        password='erfanmysql',
-        database='university',
-    ).cursor()
-
-    #     get student where dept_name is physics
-    my_cursor.execute('SELECT * FROM student')
-    print(my_cursor.fetchall())
