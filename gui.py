@@ -1,14 +1,112 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, \
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QVBoxLayout, QMessageBox, QCheckBox
 
 from db import Database
+from utils import is_auth
+
+
+class LoginWindow(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Login")
+
+        # Create main layout
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        # Create input fields
+        self.username_input = QLineEdit()
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)
+
+        # Add input labels and fields to layout
+        layout.addWidget(QLabel("Username:"))
+        layout.addWidget(self.username_input)
+        layout.addWidget(QLabel("Password:"))
+        layout.addWidget(self.password_input)
+
+        # Create checkbox buttons
+        #self.teacher_checkbox = QCheckBox("Teacher")
+        #self.student_checkbox = QCheckBox("Student")
+
+        ## Add checkbox buttons to layout
+        #layout.addWidget(self.student_checkbox)
+        #layout.addWidget(self.teacher_checkbox)
+
+        # Create buttons and connect them to functions
+        login_button = QPushButton("Login")
+        login_button.clicked.connect(self.login)
+        layout.addWidget(login_button)
+
+    def login(self):
+        self.username = self.username_input.text()
+        self.password = self.password_input.text()
+        
+        self.accept()
 
 
 class App(QMainWindow):
     def __init__(self, host, user, password, database):
         super().__init__()
 
+
+        # Create login window and show it
+        self.login_window = LoginWindow()
+        if self.login_window.exec_() != QDialog.Accepted:
+            self.close()
+            return
+        
         self.db = Database(host, user, password, database)
+
+        self.students_table = ['classroom', 'course']
+        self.teachers_table = ['department', 'teaches']
+
+        valid_students = []
+        valid_teachers = []
+        
+        students_with_pass = []
+        teachers_with_pass = []
+        query_teacher = """
+            SELECT name, password FROM instructor;
+        """
+        for i in self.db.query(query_teacher):
+            valid_teachers.append(i[0])
+            teachers_with_pass.append(i)
+
+        query_student = """
+            SELECT name, password FROM student;
+        """
+
+        for i in self.db.query(query_student):
+            valid_students.append(i[0])
+            students_with_pass.append(i)
+        
+        self.user_type = ""
+        # Get user type from login window
+        if self.login_window.username in valid_students:
+            self.user_type = "student"
+
+        elif self.login_window.username in valid_teachers:
+            self.user_type = "teacher"
+
+        else:
+            QMessageBox.warning(self, "Error", "Invalid user")
+            return
+
+        all_users = students_with_pass + teachers_with_pass
+        
+        #print(all_users)
+        #Check the password
+        #print(self.login_window.username, self.login_window.password)
+        for obj in all_users:
+            if self.login_window.username == obj[0]:
+                if self.login_window.password != obj[1]:
+                    QMessageBox.warning(self, "Error", "Invalid password =(")
+                    return
+
+        # Set window title based on user type
+        #self.setWindowTitle(f"{self.user_type.capitalize()} App")
 
         # Create main widget and layout
         widget = QWidget()
@@ -54,6 +152,7 @@ class App(QMainWindow):
         delete_button.clicked.connect(self.delete_data)
         layout.addWidget(delete_button, 6, 1)
 
+
     def read_data(self):
         pass
         table = self.table_input.text()
@@ -65,7 +164,12 @@ class App(QMainWindow):
             values = tuple()
         where = self.where_input.text() if self.where_input.text() != '' else None
         limit = int(self.limit_input.text()) if self.limit_input.text() else None
-        data = self.db.get(table, fields, where, limit, values)
+
+        if is_auth('student', table):
+            data = self.db.get(table, fields, where, limit, values)
+        else:
+            QMessageBox.warning(self, "Error", "Invalid grants")
+            return
 
         self.table_widget.clearContents()
         # Row count
@@ -78,13 +182,13 @@ class App(QMainWindow):
         col_counts = len(fields)
         self.table_widget.setColumnCount(col_counts)
 
-        # display fields
+        # Display fields
         for col, field_name in zip(range(col_counts), fields):
             self.table_widget.setItem(0, col, QTableWidgetItem(field_name))
 
         for row in range(1, row_counts + 1):
             for col in range(col_counts):
-                self.table_widget.setItem(row, col, QTableWidgetItem(str(data[row-1][col])))
+                self.table_widget.setItem(row, col, QTableWidgetItem(str(data[row - 1][col])))
 
         # Table will fit the screen horizontally
         self.table_widget.horizontalHeader().setStretchLastSection(True)
@@ -92,6 +196,10 @@ class App(QMainWindow):
             QHeaderView.Stretch)
 
     def insert_data(self):
+        if self.user_type != "teacher":
+            QMessageBox.warning(self, "Error", "Only teachers can insert data.")
+            return
+
         table = self.table_input.text()
         fields = tuple(self.fields_input.text().split(","))
         values = tuple(self.values_input.text().split(","))
@@ -101,6 +209,10 @@ class App(QMainWindow):
             print(e)
 
     def update_data(self):
+        if self.user_type != "teacher":
+            QMessageBox.warning(self, "Error", "Only teachers can update data.")
+            return
+
         table = self.table_input.text()
         fields = tuple(self.fields_input.text().split(","))
         values = tuple(self.values_input.text().split(","))
@@ -109,8 +221,13 @@ class App(QMainWindow):
         self.db.update(table, fields, values, where)
 
     def delete_data(self):
+        if self.user_type != "teacher":
+            QMessageBox.warning(self, "Error", "Only teachers can delete data.")
+            return
+
         table = self.table_input.text()
         where = self.where_input.text()
         values = tuple(self.values_input.text().split(","))
 
         self.db.delete(table, where, values)
+
