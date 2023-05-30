@@ -1,0 +1,8 @@
+mysql-connector-python==8.0.33
+pip==23.1.2
+protobuf==3.20.3
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.12.1
+PyQt5==5.15.9
+setuptools==67.7.2
+wheel==0.40.0
